@@ -3,11 +3,9 @@
 # Writing the classes needed for project
 
 ##### TODO:
-##### 1. check_for_done function is wrong
-##### 2. check the correctness of the best_UCB function
-##### 3. check the correctness of the roll-out function
-##### 4. optimize expand function, to only expand on nearby positions(9*9)
-##### 5. add artificial spot to drop the chess
+##### 1. Find a way to proper store last_mat(there're many places used last_mat, cannot just store it in the exception)
+##### 2. optimize expand function, to only expand on nearby positions(9*9)
+##### 3. add artificial spot to drop the chess
 
 
 import time
@@ -35,7 +33,7 @@ def update_by_man(event,mat):
         mat[row][col]=1
     return mat, done
 
-def update_by_pc(mat):
+def update_by_pc(mat,computation_time = 1):
     """
     This is the core of the game. Write your code to give the computer the intelligence to play a Five-in-a-Row game 
     with a human
@@ -44,8 +42,10 @@ def update_by_pc(mat):
     output:
         2D matrix representing the updated state of the game.
     """
+    global last_mat
     node = Node(mat=mat)
-    next_node = monte_carlo_tree_search(node)
+    next_node = monte_carlo_tree_search(node,computation_time = computation_time)
+    last_mat = mat
     return next_node.state
 
 def draw_board(screen):    
@@ -96,7 +96,6 @@ def render(screen, mat):
     output:
         none        
     """
-    
     draw_board(screen)
     draw_stone(screen, mat)
     pygame.display.update()
@@ -104,11 +103,10 @@ def render(screen, mat):
 ################################################ END FOR GUI ################################################
 
 ################################################ START MCTS ################################################
-def monte_carlo_tree_search(root):
+def monte_carlo_tree_search(root,computation_time = 1):
     start = time.time()
-    computation_time=1
     i=0
-    while time.time()-start<computation_time:
+    while (time.time()-start)<computation_time:
         leaf = traverse(root) # leaf = unvisited node 
         simulation_result = rollout(leaf)
         expand(leaf)
@@ -119,21 +117,21 @@ def monte_carlo_tree_search(root):
 
 def expand(node):
     for pos in node.possible_positions:
-        temp_node = Node(mat = update_state(node.state,pos,parent_is_npc=node.is_npc),parent = node)
-        temp_node.update_parents_child()
+        Node(mat = update_state(node.state,pos,parent_is_npc=node.is_npc),parent = node)
     return
 
 # For the traverse function, to avoid using up too much time or resources, you may start considering only 
 # a subset of children (e.g 5 children). Increase this number or by choosing this subset smartly later.
 def traverse(node):
     while len(node.children)>0:
-        node = best_UCB(node)
+        node = node.best_UCB()
     return node # in case no children are present / node is terminal 
                                                  
 def rollout(node):
     while not node.is_terminal:
         node = rollout_policy(node)
     _,winner = check_for_done(node.state)
+    print(f"not done,still {len(node.possible_positions)} possible positions")
     return winner 
 
 def rollout_policy(node):
@@ -142,12 +140,11 @@ def rollout_policy(node):
     return new_node
 
 def update_stats(node,winner):
-    if (winner == -1) and (node.is_npc == True):
-            node.win+=1
-    elif winner == 1:
-        if node.is_npc == False:
-            node.win+=1
+    if winner == -1:
+        node.AIwins+=1
     node.visits+=1
+    return 
+    
 
 def backpropagate(node, result):
     if not node:
@@ -157,7 +154,7 @@ def backpropagate(node, result):
 
 def best_child(node):
     #pick child with highest number of visits   
-    return best_UCB(node)
+    return node.best_UCB()
 
 
 ######################################## END FOR MCTS ################################################
@@ -175,28 +172,11 @@ def generate_remaining(mat):
                 available_positions.append((row,col))
     return available_positions
 
-def UCB(node,c=2):
-    """"
-    return the UCB value for the current node, with a adjustable parameter c = 2 as default.
-    c is the bias parameter
-    """
-    w = node.win
-    ni = node.visits
-    n_parent = node.parent.visits
-    return (w/ni+c*np.sqrt(np.log(n_parent/ni))) if ni!=0 else np.Inf
-
-def best_UCB(node):
-    """
-    Find the child node with maximum UCB value in the current node.
-    """
-    return node.children[np.argmax([UCB(temp_node,c=2) for temp_node in node.children])]
 
 def update_state(mat,pos,parent_is_npc = False):
     """
     temperary function to drop the chess
     """
-    # print("call to update state")
-    # print(f"pos is{pos}")
     temp_mat = mat.copy()
     if parent_is_npc==True:                # if parent is NPC, then now we drop the 1, else drop -1 indicating NPC
         temp_mat[pos] = 1
@@ -204,44 +184,123 @@ def update_state(mat,pos,parent_is_npc = False):
         temp_mat[pos] = -1
     return temp_mat
 
+# New check_for_done function on Nov.09 From F.Y
+# def check_for_done(mat):
+#     search_lst=[(2,2),(2,3),(2,4),(2,5),
+#                 (3,2),(3,3),(3,4),(3,5),
+#                 (4,2),(4,3),(4,4),(4,5),
+#                 (5,2),(5,3),(5,4),(5,5)]
+#     for (i,j) in search_lst:
+#         for x in range(i-2,i+3):                  #窗口内横排即将5连
+#             if sum(mat[x][j-2:j+3])==5:   
+#                 return True, 1
+#             elif sum(mat[x][j-2:j+3])==-5:
+#                 return True, -1
+#         for y in range(j-2,j+3):                  #窗口内竖列即将5连
+#             if mat[i-2][y]+mat[i-1][y]+mat[i][y]+mat[i+1][y]+mat[i+2][y]==5:   
+#                 return True,1
+#             elif mat[i-2][y]+mat[i-1][y]+mat[i][y]+mat[i+1][y]+mat[i+2][y]==-5:
+#                 return True,-1 
+#         dia_z,dia_f=0,0
+#         for n in range(5):
+#             dia_z+=mat[i-2+n][j-2+n]    #主对角线（左上到右下）即将5连
+#             dia_f+=mat[i+2-n][j-2+n]    #副对角线（左下到右上）即将5连
+#         if dia_z==5 or dia_f==5:
+#             return True,1                           #最终返回A则1将在下一步胜
+#         elif dia_z==-5 or dia_f==-5:
+#             return True,-1                        #最终返回B则-1将在下一步胜                                        
+#     else:
+#         if (mat==0).sum()==0:                   #如果棋盘没有位置是空的，返回结束，平
+#             return True,0
+#         else:
+#              return False,0                       #最终返回C则没有人会在下一步获得胜利
+         
+# Check for done function written by Chris on Nov.11
+# Using the difference of last_mat and mat to find the last position, and determine only by the relative 
 def check_for_done(mat):
-    """
-    please write your own code testing if the game is over. Return a boolean variable done. If one of the players wins
-    or the tie happens, return True. Otherwise return False. Print a message about the result of the game.
-    input: 
-        2D matrix representing the state of the game
-    output:
-        True,1:Black win the game
-        True,0:Draw
-        True,-1:White win the game
-        False,0:Not complete
-    """
-    search_lst=[(2,2),(2,3),(2,4),(2,5),
-                (3,2),(3,3),(3,4),(3,5),
-                (4,2),(4,3),(4,4),(4,5),
-                (5,2),(5,3),(5,4),(5,5)]
-    for (i,j) in search_lst:
-        for x in range(i-2,i+3):                  #窗口内横排即将5连
-            if sum(mat[x][j-2:j+3])==5:   
-                return True, 1
-            elif sum(mat[x][j-2:j+3])==-5:
-                return True, -1
-        for y in range(j-2,j+3):                  #窗口内竖列即将5连
-            if mat[i-2][y]+mat[i-1][y]+mat[i][y]+mat[i+1][y]+mat[i+2][y]==5:   
-                return True,1
-            elif mat[i-2][y]+mat[i-1][y]+mat[i][y]+mat[i+1][y]+mat[i+2][y]==-5:
-                return True,-1 
-        dia_z,dia_f=0,0
-        for n in range(5):
-            dia_z+=mat[i-2+n][j-2+n]    #主对角线（左上到右下）即将5连
-            dia_f+=mat[i+2-n][j-2+n]    #副对角线（左下到右上）即将5连
-        if dia_z==5 or dia_f==5:
-            return True,1                           #最终返回A则1将在下一步胜
-        elif dia_z==-5 or dia_f==-5:
-            return True,-1                        #最终返回B则-1将在下一步胜
-        elif (mat==0).sum()==0:
-            return True,0                        #如果棋盘没有位置是空的，返回结束，平
-        return False,0                       #最终返回C则没有人会在下一步获得胜利
+    global last_mat
+    try:
+        # print("positon 1")
+        pos=[int(x) for x in np.where(mat-last_mat==1)]
+        row,col = pos[0],pos[1]
+        player = mat[row,col]
+        top = 0 if row-4<0 else row-4
+        bottom = 7 if row+4>7 else row+4
+        left = 0 if col-4<0 else col-4
+        right = 7 if col+4>7 else col+4
+        # print("position 2")
+        
+        # Check if horizontal made 5 connects
+        temp_left = left
+        while temp_left+4<=right:
+            if np.sum(mat[row,temp_left:temp_left+5]) == 5*player:
+                return True,player
+            temp_left+=1
+        # print("position 3")
+        # Check for the vertical
+        temp_top = top
+        while temp_top+4<=bottom:
+            if np.sum(mat[temp_top:temp_top+5,col]) == 5*player:
+                return True,player
+            temp_top+=1
+        # print("pisition 4")
+        # # Check for the diagonal
+        temp_left = left
+        temp_top = top
+        while temp_left+4<=right and temp_top+4<=bottom:
+            if(np.sum(mat[temp_top:temp_top+5,temp_left:temp_left+5].diagonal())==5*player):
+                return True,player
+            temp_left+=1
+            temp_top+=1
+        # print("position 5")
+        # Check for the off-diagonal
+        temp_col = col
+        temp_row = row
+        while temp_col<=7 and temp_row>=0:
+            if(np.sum(np.fliplr(mat[temp_row:temp_row+5,temp_col-4:temp_col+1]).diagonal())==5*player):
+                return True,player
+            temp_col+=1
+            temp_row-=1
+        # print("position 6")
+        if np.sum(mat==0)==0:
+            return True,0
+        else:
+            return False,0
+    except:                             # if last_map not even exist, this is the first step
+        print("last_mat does not exist")
+        search_lst=[(2,2),(2,3),(2,4),(2,5),
+                        (3,2),(3,3),(3,4),(3,5),
+                        (4,2),(4,3),(4,4),(4,5),
+                        (5,2),(5,3),(5,4),(5,5)]
+        for (i,j) in search_lst:
+            for x in range(i-2,i+3):                  #窗口内横排即将5连
+                if sum(mat[x][j-2:j+3])==5:   
+                    return True, 1
+                elif sum(mat[x][j-2:j+3])==-5:
+                    return True, -1
+            for y in range(j-2,j+3):                  #窗口内竖列即将5连
+                if mat[i-2][y]+mat[i-1][y]+mat[i][y]+mat[i+1][y]+mat[i+2][y]==5:   
+                    return True,1
+                elif mat[i-2][y]+mat[i-1][y]+mat[i][y]+mat[i+1][y]+mat[i+2][y]==-5:
+                    return True,-1 
+            dia_z,dia_f=0,0
+            for n in range(5):
+                dia_z+=mat[i-2+n][j-2+n]    #主对角线（左上到右下）即将5连
+                dia_f+=mat[i+2-n][j-2+n]    #副对角线（左下到右上）即将5连
+            if dia_z==5 or dia_f==5:
+                return True,1                           #最终返回A则1将在下一步胜
+            elif dia_z==-5 or dia_f==-5:
+                return True,-1                        #最终返回B则-1将在下一步胜                                        
+            else:
+                if (mat==0).sum()==0:                   #如果棋盘没有位置是空的，返回结束，平
+                    return True,0
+                else:
+                    return False,0                       #最终返回C则没有人会在下一步获得胜利
+        last_mat = mat
+        return False,0
+    
+
+
 
 class Node():
     def __init__(self,mat=np.zeros([8,8]),parent=None):
@@ -253,7 +312,7 @@ class Node():
             self.is_terminal = True                    # set is_terminal to True if the game has been terminated
         else:
             self.is_terminal = False
-        self.win = 0                                   # record the number of wins in the current node
+        self.AIwins = 0                                  # record the number of AI wins in the current node
         self.visits = 0                                # record the number of total visits in the current node
         self.possible_positions = generate_remaining(self.state)             # find all the possible positions in the current state 
         if self.parent is None:                        # record if the node is myself(npc, white) or for my opponent(user, black) 
@@ -262,17 +321,30 @@ class Node():
                 self.is_npc = True
         else:
             self.is_npc = False
+        if parent:
+            self.parent.children.append(self)
 
-    def update_parents_child(self):
+    
+    def UCB(self,c=2):
+        """"
+        return the UCB value for the current node, with a adjustable parameter c = 2 as default.
+        c is the bias parameter
         """
-        if a new child is created, add this node to his parent's children attribute
-        input the current child node, it will automatically be added to his parent node's children attribute
+        w = self.AIwins
+        ni = self.visits
+        n_parent = self.parent.visits
+        return (w/ni+c*np.sqrt(np.log(n_parent)/ni)) if ni!=0 else np.Inf
+
+    def best_UCB(self,c=2):
         """
-        self.parent.children.append(self)
+        Find the child node with maximum UCB value in the current node.
+        """
+        return self.children[np.argmax([temp_node.UCB(c=c) for temp_node in self.children])]
 
 if __name__ == '__main__':
     
     global M
+    global last_mat
     M=8
     
     pygame.init()
@@ -312,4 +384,21 @@ if __name__ == '__main__':
                     break
                     # otherwise contibue
     pygame.quit()
+    
+
+# =============================================================================
+# # For Node testing
+# =============================================================================
+# if __name__ == "__main__":
+#     mat = np.zeros([8,8])
+#     mat[4,4] = 1
+#     mat = update_by_pc(mat,10)
+    # node = Node()
+    # node1 = Node(parent=node)
+    # node2 = Node(parent=node)
+    # node11 = Node(parent=node1)
+    # backpropagate(node11, -1)
+    # print(f"node.visits = {node.visits},node.AIwins = {node.AIwins}")
+    # print(f"node1.visits = {node1.visits},node1.AIwins = {node1.AIwins}")
+    # print(f"node11.visits = {node11.visits},node11.AIwins = {node11.AIwins}")
     
