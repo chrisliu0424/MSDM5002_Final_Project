@@ -7,6 +7,7 @@
 ##### 2. optimize expand function, to only expand on nearby positions(9*9)
 ##### 3. add artificial spot to drop the chess
 ##### 4. dig into the profile to optimize
+##### 5. rollout always enter the same node, but that node is already a terminal node.
 
 
 import time
@@ -106,19 +107,39 @@ def render(screen, mat):
 
 ################################################ START MCTS ################################################
 def monte_carlo_tree_search(root,computation_time = 1):
+    """
+    Do Monte Carlo Tree Search and return the best node for the next move
+    For the Monte Carlo, it will follow the following four steps:
+    1. Traverse
+    2. Rollout
+    3. Expand
+    4. Backpropagate
+    input:
+        the root of the monte_carlo_tree_search
+    output:
+        the best child to play the move
+    """
     start = time.time()
-    i=0
+    i=0                            # record the number of iterations run 
     while (time.time()-start)<computation_time:
-        leaf = traverse(root) # leaf = unvisited node 
-        simulation_result = rollout(leaf)
-        leaf.children=[]           # we don't keep any intermedia node in the rollout
-        expand(leaf)
-        backpropagate(leaf, simulation_result)
+        leaf = traverse(root)      # traverse to the last unvisited node
+        simulation_result = rollout(leaf)       # start to do 1 rollout from this unvisited node
+        leaf.children=[]           # we don't keep any intermedia node in the rollout, this extra step is to fix the bug created by node creating in the roll-out
+        expand(leaf)               # after the rollout, we expand the rollout node
+        backpropagate(leaf, simulation_result)              # backpropagate the result up to the root node.
         i+=1
     print(f"Total {i} simulations done in {computation_time}s")
     return best_child(root)
 
 def expand(node):
+    """"
+    Work as a subfunction for MCTS
+    do the expand procedure in the MCTS
+    input:
+        the node needed to be expanded 
+    output:
+        do not return anything, but create all possible children nodes for the input node
+    """
     for pos in node.possible_positions:
         Node(mat = update_state(node.state,pos,parent_is_npc=node.is_npc),parent = node)
     return
@@ -126,42 +147,81 @@ def expand(node):
 # For the traverse function, to avoid using up too much time or resources, you may start considering only 
 # a subset of children (e.g 5 children). Increase this number or by choosing this subset smartly later.
 def traverse(node):
-    while len(node.children)>0:
-        node = node.best_UCB()
+    """
+    Work as another subfunction for MCTS
+    Traverse to one unvisted node, which is a leaf of the tree
+    In every step, it will choose the node with the largest UCB value
+    input:
+        node which needs to traverse to the bottom
+    output:
+        a leaf with the route of largest UCB value
+    """
+    while len(node.children)>0:              # leaf will have 0 child
+        node = node.best_UCB()               # choose the child with largest UCB value
     return node # in case no children are present / node is terminal 
                                                  
 def rollout(node):
+    """
+    From the input node, do a random rollout and return the result
+    input:
+        input ndoe ready for rollout
+    output:
+        return the winner of the rollout
+    """
     done,winner = check_for_done(node.state)
-    rollout_times = 0
+    # rollout_times = 0
     while not done:
         node = rollout_policy(node)
         done,winner = check_for_done(node.state)
         rollout_times+=1
-    if rollout_times==0:
-        print(node.state)
+    # if rollout_times==0:
+    #     print(node.state)                   # code to debug, when rollout always enters the same node to do rollout, but the node is already in finished state
     # print("In this rollout, total rollout_time is:",rollout_times)
     return winner 
 
 def rollout_policy(node):
-    # print(f"the number of node.possible_positions is:{len(node.possible_positions)}")
+    """
+    helper function for the rollout
+    choose one of the children randomly and return the child node
+    input:
+        an unfinished node
+    output:
+        child chosen randomly
+    """
     drop_pos = node.possible_positions[np.random.choice(len(node.possible_positions))]
     new_node = Node(mat = update_state(mat=node.state,pos=drop_pos,parent_is_npc = node.is_npc),parent = node)
     return new_node
+    
+
+def backpropagate(node, result):
+    """
+    function to do backpropagate when rollout is finished, pass the result all the way to the root
+    input:
+        node: the last node to dot the backpropagate
+        result: game result of the node
+    output:
+        does not return anything but update the attribute in the path nodes.
+    """
+    if result == 0:      # don't do anything if the the game is draw
+        return
+    if not node:         # already updated all node, we exit the function
+        return 
+    update_stats(node, result) 
+    backpropagate(node = node.parent,result = result)
 
 def update_stats(node,winner):
+    """
+    helper function for backpropagate
+    if the winner is AI, we add 1 to the AIwins attribute, otherwise, only visits is added by 1
+    input:
+        node: the current node to be update
+        winner: the winner of the current rollout
+    """
     if winner == -1:
         node.AIwins+=1
     node.visits+=1
     return 
-    
 
-def backpropagate(node, result):
-    if result == 0:      # don't do anything if the the game is draw
-        return
-    if not node:
-        return 
-    node.stats = update_stats(node, result) 
-    backpropagate(node = node.parent,result = result)
 
 def best_child(node):
     #pick child with highest number of visits   
@@ -373,71 +433,71 @@ class Node():
         return self.children[np.argmax([temp_node.UCB(c=c) for temp_node in self.children])]
 
 # =============================================================================
-# if __name__ == '__main__':
-#     
-#     global M
-#     global last_mat
-#     global except_times
-#     global check_times
-#     M=8
-#     
-#     pygame.init()
-#     screen=pygame.display.set_mode((640,640))
-#     pygame.display.set_caption('Five-in-a-Row')
-#     done=False
-#     mat=np.zeros((M,M))
-#     d=int(560/(M-1))
-#     draw_board(screen)
-#     pygame.display.update()
-# 
-#     while not done:
-#         for event in pygame.event.get():
-#             if event.type==pygame.QUIT:
-#                 done=True
-#             if event.type==pygame.MOUSEBUTTONDOWN:
-#                 except_times=0
-#                 check_times=0
-#                 (x,y)=event.pos
-#                 row = round((y - 40) / d)     
-#                 col = round((x - 40) / d)
-#                 mat[row][col]=1
-#                 render(screen, mat)
-#                 # check for win or tie
-#                 done,winner = check_for_done(mat)
-#                 # print message if game finished
-#                 if done == True:
-#                     print(f"The game is done, winner is {winner}")
-#                     break
-#                 # otherwise continue
-#                 
-#                 mat = update_by_pc(mat,5)
-#                 render(screen,mat)
-#                 # check for win or tie
-#                 done,winner = check_for_done(mat)
-#                 print(f"Total check time is: {check_times}")
-#                 print(f"Total exception time is: {except_times}")
-#                 # print message if game finished
-#                 if done == True:
-#                     print(f"The game is done, winner is {winner}")
-#                     break
-#                     # otherwise contibue
-#     pygame.quit()
+if __name__ == '__main__':
+    
+    global M
+    global last_mat
+    global except_times
+    global check_times
+    M=8
+    
+    pygame.init()
+    screen=pygame.display.set_mode((640,640))
+    pygame.display.set_caption('Five-in-a-Row')
+    done=False
+    mat=np.zeros((M,M))
+    d=int(560/(M-1))
+    draw_board(screen)
+    pygame.display.update()
+
+    while not done:
+        for event in pygame.event.get():
+            if event.type==pygame.QUIT:
+                done=True
+            if event.type==pygame.MOUSEBUTTONDOWN:
+                except_times=0
+                check_times=0
+                (x,y)=event.pos
+                row = round((y - 40) / d)     
+                col = round((x - 40) / d)
+                mat[row][col]=1
+                render(screen, mat)
+                # check for win or tie
+                done,winner = check_for_done(mat)
+                # print message if game finished
+                if done == True:
+                    print(f"The game is done, winner is {winner}")
+                    break
+                # otherwise continue
+                
+                mat = update_by_pc(mat,5)
+                render(screen,mat)
+                # check for win or tie
+                done,winner = check_for_done(mat)
+                print(f"Total check time is: {check_times}")
+                print(f"Total exception time is: {except_times}")
+                # print message if game finished
+                if done == True:
+                    print(f"The game is done, winner is {winner}")
+                    break
+                    # otherwise contibue
+    pygame.quit()
 #     
 # =============================================================================
 
 # =============================================================================
 # # For Node testing
 # =============================================================================
-if __name__ == "__main__":
-    mat = np.zeros([8,8])
-    mat[4,4] = 1
-    mat = update_by_pc(mat,10)
-    # node = Node()
-    # node1 = Node(parent=node)
-    # node2 = Node(parent=node)
-    # node11 = Node(parent=node1)
-    # backpropagate(node11, -1)
-    # print(f"node.visits = {node.visits},node.AIwins = {node.AIwins}")
-    # print(f"node1.visits = {node1.visits},node1.AIwins = {node1.AIwins}")
-    # print(f"node11.visits = {node11.visits},node11.AIwins = {node11.AIwins}")
+# if __name__ == "__main__":
+    # mat = np.zeros([8,8])
+    # mat[4,4] = 1
+    # mat = update_by_pc(mat,10)
+    # # node = Node()
+    # # node1 = Node(parent=node)
+    # # node2 = Node(parent=node)
+    # # node11 = Node(parent=node1)
+    # # backpropagate(node11, -1)
+    # # print(f"node.visits = {node.visits},node.AIwins = {node.AIwins}")
+    # # print(f"node1.visits = {node1.visits},node1.AIwins = {node1.AIwins}")
+    # # print(f"node11.visits = {node11.visits},node11.AIwins = {node11.AIwins}")
     
