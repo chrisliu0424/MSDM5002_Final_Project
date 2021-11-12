@@ -173,7 +173,7 @@ def rollout(node):
     while not done:
         node = rollout_policy(node)
         done,winner = check_for_done(node.state)
-        rollout_times+=1
+        # rollout_times+=1
     # if rollout_times==0:
     #     print(node.state)                   # code to debug, when rollout always enters the same node to do rollout, but the node is already in finished state
     # print("In this rollout, total rollout_time is:",rollout_times)
@@ -290,9 +290,9 @@ def update_state(mat,pos,parent_is_npc = False):
 # Using the difference of last_mat and mat to find the last position, and determine only by the relative 
 def check_for_done(mat):
     global last_mat
-    # global except_times
-    # global check_times
-    # check_times+=1
+    global except_times
+    global check_times
+    check_times+=1
     try:
         # print()
         # print("positon 0")
@@ -359,7 +359,7 @@ def check_for_done(mat):
 
     except:                             # if last_map not even exist, this is the first step
         # print("get into the exception")
-        # except_times+=1
+        except_times+=1
         last_mat = mat.copy()
         search_lst=[(2,2),(2,3),(2,4),(2,5),
                 (3,2),(3,3),(3,4),(3,5),
