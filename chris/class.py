@@ -3,9 +3,10 @@
 # Writing the classes needed for project
 
 ##### TODO:
-##### 1. Find a way to proper store last_mat(there're many places used last_mat, cannot just store it in the exception)
+##### 1. simulation is very slow
 ##### 2. optimize expand function, to only expand on nearby positions(9*9)
 ##### 3. add artificial spot to drop the chess
+##### 4. dig into the profile to optimize
 
 
 import time
@@ -45,7 +46,8 @@ def update_by_pc(mat,computation_time = 1):
     global last_mat
     node = Node(mat=mat)
     next_node = monte_carlo_tree_search(node,computation_time = computation_time)
-    last_mat = mat
+    # del last_mat
+    # last_mat = mat
     return next_node.state
 
 def draw_board(screen):    
@@ -109,6 +111,7 @@ def monte_carlo_tree_search(root,computation_time = 1):
     while (time.time()-start)<computation_time:
         leaf = traverse(root) # leaf = unvisited node 
         simulation_result = rollout(leaf)
+        leaf.children=[]           # we don't keep any intermedia node in the rollout
         expand(leaf)
         backpropagate(leaf, simulation_result)
         i+=1
@@ -128,13 +131,19 @@ def traverse(node):
     return node # in case no children are present / node is terminal 
                                                  
 def rollout(node):
-    while not node.is_terminal:
+    done,winner = check_for_done(node.state)
+    rollout_times = 0
+    while not done:
         node = rollout_policy(node)
-    _,winner = check_for_done(node.state)
-    print(f"not done,still {len(node.possible_positions)} possible positions")
+        done,winner = check_for_done(node.state)
+        rollout_times+=1
+    if rollout_times==0:
+        print(node.state)
+    # print("In this rollout, total rollout_time is:",rollout_times)
     return winner 
 
 def rollout_policy(node):
+    # print(f"the number of node.possible_positions is:{len(node.possible_positions)}")
     drop_pos = node.possible_positions[np.random.choice(len(node.possible_positions))]
     new_node = Node(mat = update_state(mat=node.state,pos=drop_pos,parent_is_npc = node.is_npc),parent = node)
     return new_node
@@ -147,6 +156,8 @@ def update_stats(node,winner):
     
 
 def backpropagate(node, result):
+    if result == 0:      # don't do anything if the the game is draw
+        return
     if not node:
         return 
     node.stats = update_stats(node, result) 
@@ -219,9 +230,28 @@ def update_state(mat,pos,parent_is_npc = False):
 # Using the difference of last_mat and mat to find the last position, and determine only by the relative 
 def check_for_done(mat):
     global last_mat
+    # global except_times
+    # global check_times
+    # check_times+=1
     try:
-        # print("positon 1")
-        pos=[int(x) for x in np.where(mat-last_mat==1)]
+        # print()
+        # print("positon 0")
+        # print("last_mat:")
+        # print(last_mat)
+        # print("\n mat:")
+        # print(mat)
+        # print("mat is:")
+        # print(mat)
+        if len((np.where(abs(mat-last_mat)==1))[0])!=1:
+            last_mat = mat.copy()
+            print(tt)                   # manually get into the except clause
+        # print("position 1")
+        # print("last_mat is:")
+        # print(last_mat)
+        pos=[int(x) for x in np.where(abs(mat-last_mat)==1)]
+        last_mat = mat.copy()
+        # print("updated last_mat is:")
+        # print(last_mat)
         row,col = pos[0],pos[1]
         player = mat[row,col]
         top = 0 if row-4<0 else row-4
@@ -266,12 +296,15 @@ def check_for_done(mat):
             return True,0
         else:
             return False,0
+
     except:                             # if last_map not even exist, this is the first step
-        print("last_mat does not exist")
+        # print("get into the exception")
+        # except_times+=1
+        last_mat = mat.copy()
         search_lst=[(2,2),(2,3),(2,4),(2,5),
-                        (3,2),(3,3),(3,4),(3,5),
-                        (4,2),(4,3),(4,4),(4,5),
-                        (5,2),(5,3),(5,4),(5,5)]
+                (3,2),(3,3),(3,4),(3,5),
+                (4,2),(4,3),(4,4),(4,5),
+                (5,2),(5,3),(5,4),(5,5)]
         for (i,j) in search_lst:
             for x in range(i-2,i+3):                  #窗口内横排即将5连
                 if sum(mat[x][j-2:j+3])==5:   
@@ -291,13 +324,11 @@ def check_for_done(mat):
                 return True,1                           #最终返回A则1将在下一步胜
             elif dia_z==-5 or dia_f==-5:
                 return True,-1                        #最终返回B则-1将在下一步胜                                        
+        else:
+            if (mat==0).sum()==0:                   #如果棋盘没有位置是空的，返回结束，平
+                return True,0
             else:
-                if (mat==0).sum()==0:                   #如果棋盘没有位置是空的，返回结束，平
-                    return True,0
-                else:
-                    return False,0                       #最终返回C则没有人会在下一步获得胜利
-        last_mat = mat
-        return False,0
+                 return False,0                       #最终返回C则没有人会在下一步获得胜利
     
 
 
@@ -307,11 +338,11 @@ class Node():
         self.state = mat                               # state of the current node
         self.parent = parent                           # record the parent of the current node
         self.children = []                             # create an empty list to record all the children
-        done,_ = check_for_done(mat)                   # check if the matrix has a result
-        if done == True:                             
-            self.is_terminal = True                    # set is_terminal to True if the game has been terminated
-        else:
-            self.is_terminal = False
+#        done,_ = check_for_done(mat)                   # check if the matrix has a result
+#        if done == True:                             
+#            self.is_terminal = True                    # set is_terminal to True if the game has been terminated
+#        else:
+#            self.is_terminal = False
         self.AIwins = 0                                  # record the number of AI wins in the current node
         self.visits = 0                                # record the number of total visits in the current node
         self.possible_positions = generate_remaining(self.state)             # find all the possible positions in the current state 
@@ -325,7 +356,7 @@ class Node():
             self.parent.children.append(self)
 
     
-    def UCB(self,c=2):
+    def UCB(self,c=5):
         """"
         return the UCB value for the current node, with a adjustable parameter c = 2 as default.
         c is the bias parameter
@@ -341,58 +372,66 @@ class Node():
         """
         return self.children[np.argmax([temp_node.UCB(c=c) for temp_node in self.children])]
 
-if __name__ == '__main__':
-    
-    global M
-    global last_mat
-    M=8
-    
-    pygame.init()
-    screen=pygame.display.set_mode((640,640))
-    pygame.display.set_caption('Five-in-a-Row')
-    done=False
-    mat=np.zeros((M,M))
-    d=int(560/(M-1))
-    draw_board(screen)
-    pygame.display.update()
-
-    while not done:
-        for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                done=True
-            if event.type==pygame.MOUSEBUTTONDOWN:
-                (x,y)=event.pos
-                row = round((y - 40) / d)     
-                col = round((x - 40) / d)
-                mat[row][col]=1
-                render(screen, mat)
-                # check for win or tie
-                done,winner = check_for_done(mat)
-                # print message if game finished
-                if done == True:
-                    print(f"The game is done, winner is {winner}")
-                    break
-                # otherwise continue
-                
-                mat = update_by_pc(mat)
-                render(screen,mat)
-                # check for win or tie
-                done,winner = check_for_done(mat)
-                # print message if game finished
-                if done == True:
-                    print(f"The game is done, winner is {winner}")
-                    break
-                    # otherwise contibue
-    pygame.quit()
-    
+# =============================================================================
+# if __name__ == '__main__':
+#     
+#     global M
+#     global last_mat
+#     global except_times
+#     global check_times
+#     M=8
+#     
+#     pygame.init()
+#     screen=pygame.display.set_mode((640,640))
+#     pygame.display.set_caption('Five-in-a-Row')
+#     done=False
+#     mat=np.zeros((M,M))
+#     d=int(560/(M-1))
+#     draw_board(screen)
+#     pygame.display.update()
+# 
+#     while not done:
+#         for event in pygame.event.get():
+#             if event.type==pygame.QUIT:
+#                 done=True
+#             if event.type==pygame.MOUSEBUTTONDOWN:
+#                 except_times=0
+#                 check_times=0
+#                 (x,y)=event.pos
+#                 row = round((y - 40) / d)     
+#                 col = round((x - 40) / d)
+#                 mat[row][col]=1
+#                 render(screen, mat)
+#                 # check for win or tie
+#                 done,winner = check_for_done(mat)
+#                 # print message if game finished
+#                 if done == True:
+#                     print(f"The game is done, winner is {winner}")
+#                     break
+#                 # otherwise continue
+#                 
+#                 mat = update_by_pc(mat,5)
+#                 render(screen,mat)
+#                 # check for win or tie
+#                 done,winner = check_for_done(mat)
+#                 print(f"Total check time is: {check_times}")
+#                 print(f"Total exception time is: {except_times}")
+#                 # print message if game finished
+#                 if done == True:
+#                     print(f"The game is done, winner is {winner}")
+#                     break
+#                     # otherwise contibue
+#     pygame.quit()
+#     
+# =============================================================================
 
 # =============================================================================
 # # For Node testing
 # =============================================================================
-# if __name__ == "__main__":
-#     mat = np.zeros([8,8])
-#     mat[4,4] = 1
-#     mat = update_by_pc(mat,10)
+if __name__ == "__main__":
+    mat = np.zeros([8,8])
+    mat[4,4] = 1
+    mat = update_by_pc(mat,10)
     # node = Node()
     # node1 = Node(parent=node)
     # node2 = Node(parent=node)
