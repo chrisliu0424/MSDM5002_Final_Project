@@ -72,24 +72,11 @@ class MCTSNode:
         self._ucb = (self.Q() / self.N()) + c_param * np.sqrt((2 * np.log(self.parent.N()) / self.N()))
         return self._ucb
     
-    def rollout_policy(self,can_pos,cur_pos):
+    def rollout_policy(self,can_pos):
         '''
         Rewrite by more intellegent strategy
         '''
-        if len(can_pos) == 0:
-            return
-        print(can_pos)
-        print(cur_pos)
-        shrinked = []
-        for can in can_pos:
-            if cur_pos[0]-3<=can[0]<=cur_pos[0]+3 and cur_pos[1]-3<=can[1]<=cur_pos[1]+3:
-                shrinked.append(can)    
-        #print(shrinked)
-        try:
-            res = random.sample(shrinked,1)[0]
-        except ValueError:
-            return can_pos
-        return res
+        return random.sample(can_pos,1)[0]
     
     def rollout(self):
         '''
@@ -105,7 +92,9 @@ class MCTSNode:
         while not tmp_state.is_gameover():
             #print(tmp_state.board)
             can_pos = tmp_state.candidate_moves()
-            pos = self.rollout_policy(can_pos,tmp_state.cur_pos)
+            if len(tmp_state.cur_pos)!=2:
+                print(tmp_state.cur_pos)
+            pos = self.rollout_policy(can_pos)
             ## state.next_state
             tmp_state = tmp_state.get_next_state(pos)
         #print('winner:',tmp_state.game_result())
@@ -212,7 +201,7 @@ class MCTS:
                 self.simulation(leaf)
 
         # to select best child go for exploitation only
-        return self.root.select_best_child(c_param=1.4)
+        return self.root.select_best_child(c_param=2.)
     def simulation(self, leaf):
         winner = leaf.rollout()
         leaf.backpropagate(winner)
@@ -234,5 +223,7 @@ class MCTS:
                 #print('best child:',tmp_node.cur_state.cur_pos)
             tmp_ls.append(tmp_node.cur_state.cur_player)
         return tmp_node
+
+
 
 
