@@ -236,17 +236,3 @@ class MCTS:
         return tmp_node
 
 
-def update_by_pc(mat):
-    """
-    This is the core of the game. Write your code to give the computer the intelligence to play a Five-in-a-Row game 
-    with a human
-    input:
-        2D matrix representing the state of the game.
-    output:
-        2D matrix representing the updated state of the game.
-    """
-    board_state = GameState(mat = mat)
-    root = MCTSNode(state = board_state)
-    mcts = MCTS(root)
-    best_node = mcts.select_move_by_mcts(search_limit_num=500)
-    return best_node.cur_state.board
