@@ -56,62 +56,9 @@ class MCTSNode:
         '''
         return len(self.get_unvisited_pos()) == 0
     
-    def expand(self):
-        '''
-        expand the non-fully-expanded node
-        choose an unvisited position as a child node
-        '''
-        pos = self.get_unvisited_pos().pop()
-        #print(self.get_unvisited_pos())
-        next_state = self.cur_state.get_next_state(pos)
-        child = MCTSNode(next_state,self)
-        self.children.append(child)
-        return child
-    
     def UCB_weight(self,c_param=2):
         self._ucb = (self.Q() / self.N()) + c_param * np.sqrt((2 * np.log(self.parent.N()) / self.N()))
         return self._ucb
-    
-    def rollout_policy(self,can_pos):
-        '''
-        Rewrite by more intellegent strategy
-        '''
-        return random.sample(can_pos,1)[0]
-    
-    def rollout(self):
-        '''
-        
-
-        Return -1 1 or 0
-        -------
-        from the leaf node, start to rollout
-        until reach the terminal node
-
-        '''
-        tmp_state = self.cur_state
-        while not tmp_state.is_gameover():
-            #print(tmp_state.board)
-            can_pos = tmp_state.candidate_moves()
-            if len(tmp_state.cur_pos)!=2:
-                print(tmp_state.cur_pos)
-            pos = self.rollout_policy(can_pos)
-            ## state.next_state
-            tmp_state = tmp_state.get_next_state(pos)
-        #print('winner:',tmp_state.game_result())
-        return tmp_state.game_result()
-    
-    def backpropagate(self, res):
-        if self.cur_state.next_player == res:
-            self._win_nums += 1.
-        else:
-            self._lose_nums += 1.
-        self._sim_nums += 1.
-        
-        if self.parent:
-            #print('wins:',self._win_nums)
-            #print('N:',self.N())
-            self.parent.backpropagate(res)
-        
         
     def select_best_child(self, c_param=2.):
         ucb_lst = [node.UCB_weight(c_param) for node in self.children]
@@ -186,7 +133,7 @@ class MCTS:
         self.root = node
 
     def select_move_by_mcts(self, search_limit_num=None,search_limit_time=None):
-        
+        iterations = 0
         if search_limit_num:
             for i in range(search_limit_num):
                 leaf = self.traverse()
@@ -199,12 +146,15 @@ class MCTS:
             while time.time() < end_time:
                 leaf = self.traverse()
                 self.simulation(leaf)
+                iterations+=1
+        if iterations != 0:
+            print(f"{iterations} iterations in {search_limit_time}s")
 
         # to select best child go for exploitation only
         return self.root.select_best_child(c_param=2.)
     def simulation(self, leaf):
-        winner = leaf.rollout()
-        leaf.backpropagate(winner)
+        winner = self.rollout(leaf)
+        self.backpropagate(leaf,winner)
 
     def traverse(self):
         '''
@@ -216,13 +166,66 @@ class MCTS:
         while not tmp_node.is_terminal():
             if not tmp_node.is_fully_expanded():
                 #print('traverse pos:',tmp_node.cur_state.cur_pos)
-                return tmp_node.expand()
+                return self.expand(tmp_node)
             else:
                 #print('fully expanded')
                 tmp_node = tmp_node.select_best_child()
                 #print('best child:',tmp_node.cur_state.cur_pos)
             tmp_ls.append(tmp_node.cur_state.cur_player)
         return tmp_node
+    def expand(self,node):
+        '''
+        expand the non-fully-expanded node
+        choose an unvisited position as a child node
+        '''
+        pos = node.get_unvisited_pos().pop()
+        #print(self.get_unvisited_pos())
+        next_state = node.cur_state.get_next_state(pos)
+        child = MCTSNode(next_state,node)
+        node.children.append(child)
+        return child
+    
+
+    
+    def rollout_policy(self,can_pos):
+        '''
+        Rewrite by more intellegent strategy
+        '''
+        return random.sample(can_pos,1)[0]
+    
+    def rollout(self,node):
+        '''
+        
+
+        Return -1 1 or 0
+        -------
+        from the leaf node, start to rollout
+        until reach the terminal node
+
+        '''
+        tmp_state = node.cur_state
+        while not tmp_state.is_gameover():
+            #print(tmp_state.board)
+            can_pos = tmp_state.candidate_moves()
+            if len(tmp_state.cur_pos)!=2:
+                print(tmp_state.cur_pos)
+            pos = self.rollout_policy(can_pos)
+            ## state.next_state
+            tmp_state = tmp_state.get_next_state(pos)
+        #print('winner:',tmp_state.game_result())
+        return tmp_state.game_result()
+    
+    def backpropagate(self,node, res):
+        if node.cur_state.next_player == res:
+            node._win_nums += 1.
+        else:
+            node._lose_nums += 1.
+        node._sim_nums += 1.
+        
+        if node.parent:
+            #print('wins:',self._win_nums)
+            #print('N:',self.N())
+            self.backpropagate(node.parent,res)
 
 
 
