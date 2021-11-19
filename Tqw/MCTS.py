@@ -15,6 +15,7 @@ MCTS:
 import numpy as np
 import random
 import time
+from Helpers import draw_board, render, check_for_done
 
 
 class MCTSNode:
@@ -101,17 +102,22 @@ class GameState:
         # if not over - no result
         return None
     def game_result(self):
-        if np.all(self.board != 0):
-                return 0.
-        size = self.board.shape[0]
-        for i in range(size-5+1):
-            for j in range(size-5+1):
-                #print(self.board[i:i+5,j:j+5])
-                res = self._five_mat_res(self.board[i:i+5,j:j+5])
-                if res == None:
-                    continue
-                return res
-    
+        # size = self.board.shape[0]
+        # for i in range(size-5+1):
+        #     for j in range(size-5+1):
+        #         #print(self.board[i:i+5,j:j+5])
+        #         res = self._five_mat_res(self.board[i:i+5,j:j+5])
+        #         if res == None:
+        #             continue
+        #         else:
+        #             return res
+        # if np.all(self.board != 0):
+        #         return 0.
+        flag, res = check_for_done(self.board)
+        if flag == False:
+            return None
+        else:
+            return res
     def is_gameover(self):
         
         return self.game_result() is not None
