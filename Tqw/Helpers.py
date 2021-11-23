@@ -28,7 +28,7 @@ def update_by_man(event,mat):
     return mat, done
 def draw_board(screen):    
     """
-    This function draws the board with lines.
+    This function draws the board with lines
     input: game windows
     output: none
     """
