@@ -9,12 +9,10 @@ import pygame
 import numpy as np
 from Helpers import draw_board, render, check_for_done
 from MCTS import GameState, MCTSNode, MCTS
-
-def main():
     
+def main():
+    # for debuging the check_for_done by Chris and rollout
     global M
-    # global except_times                    # for monitoring the performance of Chris' check for done
-    # global check_times
     M=8
     pygame.init()
     screen=pygame.display.set_mode((640,640))
@@ -39,21 +37,17 @@ def main():
                 # check for win or tie
                 # print message if game finished
                 # otherwise contibue
-                # except_times = 0
-                # check_times = 0
                 done, res = check_for_done(mat)
                 if done:
                     print(res,'win !')
                     break
                 
-                #get the next move from computer/MCTS
+                # get the next move from computer/MCTS
                 # check for win or tie
                 # print message if game finished
                 # otherwise contibue
                 mat = -update_by_pc(-mat)
                 done, res = check_for_done(mat)
-                # print(f"Total check is:{check_times}")
-                # print(f"Total exception is:{except_times}")
                 if done:
                     print(res,'win !')
                     break
@@ -74,9 +68,9 @@ def update_by_pc(mat):
     board_state = GameState(mat = mat)
     root = MCTSNode(state = board_state)
     mcts = MCTS(root)
-    # best_node = mcts.select_move_by_mcts(search_limit_num=500)                    # Specify number of iterations in one move
+    # best_node = mcts.select_move_by_mcts(search_limit_num=2000)                    # Specify number of iterations in one move
     best_node = mcts.select_move_by_mcts(search_limit_time=5)                       # Specify iterations time in one move
     return best_node.cur_state.board
-    
+
 if __name__ == '__main__':
     main()
