@@ -156,7 +156,7 @@ def check_for_done(mat):
     try:
         if len((np.where(abs(mat-last_mat)==1))[0])!=1:
             last_mat = mat.copy()
-            print(tt)                   # manually get into the exception clause
+            #print(tt)                   # manually get into the exception clause
         pos=[int(x) for x in np.where(abs(mat-last_mat)==1)]
         last_mat = mat.copy()
         row,col = pos[0],pos[1]         

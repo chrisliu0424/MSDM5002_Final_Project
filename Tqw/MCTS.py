@@ -18,6 +18,7 @@ import time
 from Helpers import draw_board, render, check_for_done
 
 
+
 class MCTSNode:
     def __init__(self,state,parent=None):
         self.cur_state = state
@@ -29,6 +30,7 @@ class MCTSNode:
         self._ucb = None
         self._unvisited_pos = None
         
+    
     def Q(self):
         return self._win_nums
     
@@ -44,7 +46,8 @@ class MCTSNode:
             ## state.candidate_moves()
             #print('generating candidate moves...')
             #print('cur board:',self.cur_state.board)
-            self._unvisited_pos = self.cur_state.candidate_moves()
+            #self._unvisited_pos = self.cur_state.candidate_moves()
+            self._unvisited_pos = self.cur_state.select_can_moves()
         return self._unvisited_pos
     
     def is_terminal(self):
@@ -61,7 +64,7 @@ class MCTSNode:
         self._ucb = (self.Q() / self.N()) + c_param * np.sqrt((2 * np.log(self.parent.N()) / self.N()))
         return self._ucb
         
-    def select_best_child(self, c_param=2.):
+    def select_best_child(self, c_param=1.4):
         ucb_lst = [node.UCB_weight(c_param) for node in self.children]
         #print('weights:',ucb_lst)
         #print(np.argmax(ucb_lst))
@@ -131,9 +134,34 @@ class GameState:
     def candidate_moves(self):
         #print(self.board)
         indices = np.where(self.board == 0)
-        return [(x, y) for (x, y) in list(zip(indices[0], indices[1]))]
-
-    
+        can_pos = [(x, y) for (x, y) in list(zip(indices[0], indices[1]))]
+        #random.shuffle(can_pos)
+        return can_pos
+    def select_can_moves(self, num = 20):
+        
+        can_moves = self.candidate_moves()
+        if len(can_moves)<=num:
+            return can_moves
+        scores = []
+        for move in can_moves:
+            t, b, l, r = move[0]-2, move[0]+2, move[1]-2, move[1]+2
+            if t < 0:
+                t = 0
+            elif b > len(self.board)-1:
+                b = len(self.board)-1
+            if l < 0:
+                l = 0
+            elif r > len(self.board)-1:
+                r = len(self.board)-1
+            sur = self.board[t:b+1,l:r+1]
+            score = len(np.where(sur!=0)[0])
+            scores.append(score)
+        indices_scores = [(t,s) for (t,s) in list(zip(can_moves,scores)) if s!=0]
+        indices_scores = sorted(indices_scores,key = lambda x:x[1])
+        can_moves = [t[0] for t in indices_scores[-num:]]
+        
+        return can_moves
+                  
 class MCTS:
     def __init__(self, node):
         self.root = node
@@ -157,7 +185,7 @@ class MCTS:
             print(f"{iterations} iterations in {search_limit_time}s")
 
         # to select best child go for exploitation only
-        return self.root.select_best_child(c_param=2.)
+        return self.root.select_best_child(c_param=2.0)
     def simulation(self, leaf):
         winner = self.rollout(leaf)
         self.backpropagate(leaf,winner)
@@ -212,9 +240,10 @@ class MCTS:
         tmp_state = node.cur_state
         while not tmp_state.is_gameover():
             #print(tmp_state.board)
-            can_pos = tmp_state.candidate_moves()
-            if len(tmp_state.cur_pos)!=2:
-                print(tmp_state.cur_pos)
+            #can_pos = tmp_state.candidate_moves()
+            can_pos = tmp_state.select_can_moves()
+            #if len(tmp_state.cur_pos)!=2:
+                #print(tmp_state.cur_pos)
             pos = self.rollout_policy(can_pos)
             ## state.next_state
             tmp_state = tmp_state.get_next_state(pos)
@@ -223,16 +252,12 @@ class MCTS:
     
     def backpropagate(self,node, res):
         if node.cur_state.next_player == res:
-            node._win_nums += 1.
-        else:
             node._lose_nums += 1.
+        else:
+            node._win_nums += 1.
         node._sim_nums += 1.
         
         if node.parent:
             #print('wins:',self._win_nums)
             #print('N:',self.N())
             self.backpropagate(node.parent,res)
-
-
-
-
