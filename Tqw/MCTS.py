@@ -73,13 +73,13 @@ class MCTSNode:
 
 class GameState:
     
-    def __init__(self, mat, cur_pos=None, cur_player=1):
+    def __init__(self, mat, last_pos=None, cur_player=1):
         
         self.board = mat
         self.board_size = mat.shape[0]
         self.cur_player = cur_player
         self.next_player = -1 * cur_player
-        self.cur_pos = cur_pos
+        self.last_pos = last_pos
     
     def _five_mat_res(self,mat):
         rowsum = np.sum(mat, 0)
@@ -116,7 +116,7 @@ class GameState:
         #             return res
         # if np.all(self.board != 0):
         #         return 0.
-        flag, res = check_for_done(self.board)
+        flag, res = self.check_for_done_roll()
         if flag == False:
             return None
         else:
@@ -161,6 +161,111 @@ class GameState:
         can_moves = [t[0] for t in indices_scores[-num:]]
         
         return can_moves
+    def check_for_done_roll(self):
+        mat = self.board
+        if self.last_pos:
+            # manually get into the exception clause
+            pos=self.last_pos
+            row,col = pos[0],pos[1]         
+            player = mat[row,col]
+            top = 0 if row-4<0 else row-4               # define the upper bound, lower bound, left bound and right bound for the check condition
+            bottom = 7 if row+4>7 else row+4
+            left = 0 if col-4<0 else col-4
+            right = 7 if col+4>7 else col+4
+            ones5 = np.ones(5)
+            # print("into try")              # debug message to check if the mat is into try or exception
+            
+            # Check if horizontal made 5 connects
+            temp_left = left
+            while temp_left+4<=right:
+                if np.matmul(mat[row,temp_left:temp_left+5],ones5) == 5*player:
+                    return True,player
+                temp_left+=1
+            # print("position1")
+            # Check for the vertical
+            temp_top = top
+            while temp_top+4<=bottom:
+                if np.matmul(mat[temp_top:temp_top+5,col],ones5) == 5*player:
+                    return True,player
+                temp_top+=1
+            # print("position2")
+            # # Check for the diagonal
+            temp_col = col-5
+            temp_row = row-5
+            while temp_col<=7 and temp_row<=7:
+                if temp_col<0 or temp_row<0:
+                    pass
+                else:
+                    if(np.sum(mat[temp_row:temp_row+5,temp_col:temp_col+5].diagonal())==5*player):
+                        return True,player
+                temp_col+=1
+                temp_row+=1
+            # print("position3")
+            # Check for the off-diagonal
+            temp_col = col
+            temp_row = row
+            while temp_col<=7 and temp_row<=7:
+                if(np.sum(np.fliplr(mat[temp_row:temp_row+5,temp_col-4:temp_col+1]).diagonal())==5*player):
+                    return True,player
+                temp_col+=1
+                temp_row-=1
+            if np.sum(mat==0)==0:
+                return True,0
+            else:
+                return False,0
+    
+        else:                             # if last_map not even exist, this is the first step
+        
+            # print("get into the exception")              # debug message
+            # if last_mat does not exist or does not match condition, we perpare this mat to be last_mat as we call next time
+            size = mat.shape[0]
+            if np.sum([mat==0]) > (size*size-9):     # if less than 9 moves, no winner
+                return False,0
+            ones8 = np.ones(8)
+            mat1 = mat.copy()
+            mat1[mat1==-1] = 0                 # mat1 only keeps 1 in the mat
+            mat2 = mat.copy()
+            mat2[mat1==1] = 0
+            mat2 = mat2*(-1)                   # mat2 only keeps -1 in the mat, but convert all -1 to 1 for future calculation
+            
+            rowsum = np.matmul(mat1,ones8)
+            colsum = np.matmul(ones8, mat1)
+            row_to_check=[index for index,value in enumerate(rowsum) if value>4]
+            col_to_check=[index for index,value in enumerate(colsum) if value>4]
+    
+            rowsum2 = np.matmul(mat2,ones8)
+            colsum2 = np.matmul(ones8, mat2)
+            row_to_check2 = [index for index,value in enumerate(rowsum2) if value>4]
+            col_to_check2 = [index for index,value in enumerate(colsum2) if value>4]
+    
+            for row in row_to_check:
+                for col_index in range(0,size-4):
+                    if np.matmul(mat1[row,col_index:col_index+5],ones8[:5]) == 5:
+                        return True,1
+            for col in col_to_check:
+                for row_index in range(0,size-4):
+                    if np.matmul(mat1[row_index:row_index+5,col],ones8[:5]) == 5:
+                        return True,1 
+            
+            for row in row_to_check2:
+                for col_index in range(0,size-4):
+                    if np.matmul(mat2[row,col_index:col_index+5],ones8[:5]) == 5:
+                        return True,-1
+            for col in col_to_check2:
+                for row_index in range(0,size-4):
+                    if np.matmul(mat2[row_index:row_index+5,col],ones8[:5]) == 5:
+                        return True,-1 
+    
+            for i in range(size-5+1):
+                for j in range(size-5+1):
+                    res = _five_mat_res_new(mat[i:i+5,j:j+5])
+                    if res == None:
+                        continue
+                    else:
+                        return True, res
+            if np.all(mat != 0):
+                return True, 0
+            return False,0
                   
 class MCTS:
     def __init__(self, node):
