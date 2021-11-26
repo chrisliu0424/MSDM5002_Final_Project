@@ -163,6 +163,22 @@ class GameState:
         
         return can_moves
     def check_for_done_roll(self):
+        def _five_mat_res_new(mat):
+            """"
+            Only check for diagonal entry
+            """
+            diag_sum_tl = mat.trace()
+            diag_sum_tr = mat[::-1].trace()
+        
+            if (diag_sum_tl == 5) or (diag_sum_tr == 5):
+                return 1
+        
+        
+            if (diag_sum_tl == -5) or (diag_sum_tl == -5):
+                return -1
+        
+            # if not over - no result
+            return None
         mat = self.board
         if self.last_pos:
             # manually get into the exception clause
