@@ -121,6 +121,7 @@ class GameState:
             return None
         else:
             return res
+
     def is_gameover(self):
         
         return self.game_result() is not None

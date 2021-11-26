@@ -4,8 +4,10 @@ Created on Sat Nov 13 10:55:58 2021
 
 @author: TQW
 """
+from numpy.core.fromnumeric import diagonal
 import pygame
 import numpy as np
+from collections import Counter
 
 def update_by_man(event,mat):
     """
@@ -260,4 +262,117 @@ def check_for_done(mat):
         if np.all(mat != 0):
             return True, 0
         return False,0
+
+import numpy as np
+from collections import Counter
+
+def _stop_four_connect(mat):
+    """"
+    find potential position to stop four opponent connected chess 
+    input:
+        mat: 5*5 matrix
+    output:
+        tuple of the position to stop
+    """
+    # For row
+    for row in range(len(mat)):
+        temp_count = Counter(mat[row,:])
+        if temp_count[0]==1 and temp_count[1]==4:
+            return (row,np.where(mat[row,:]==0)[0][0])
+    # For col
+    for col in range(len(mat)):
+        temp_count = Counter(mat[:,col])
+        if temp_count[0]==1 and temp_count[1]==4:
+            return (np.where(mat[:,col]==0)[0][0],col)
+    # For diagonal
+    temp_count = Counter(mat.diagonal())
+    if temp_count[0]==1 and temp_count[1]==4:
+        return (np.where(mat.diagonal()==0)[0][0],np.where(mat.diagonal()==0)[0][0])
+    # For off diagonal
+    temp_count = Counter(mat[::-1].diagonal())
+    if temp_count[0]==1 and temp_count[1]==4:
+        return (np.where(mat[::-1].diagonal()==0)[0][0],len(mat)-1-np.where(mat[::-1].diagonal()==0)[0][0])
+
+def _stop_three_connect(mat):
+    """"
+    find potential position to stop three opponent connected chess (保守版，00111和11100不拦截)
+    input:
+        mat: 5*5 matrix
+    output:
+        tuple of the position to stop
+    """
+    choice = np.random.choice([0,1])
+    skip_array = [0,0,1,1,1]
     
+    # For row
+    for row in range(len(mat)):
+        if np.array_equal(mat[row,:],skip_array) or np.array_equal(mat[row,:],skip_array[::-1]):
+            continue
+        temp_count = Counter(mat[row,:])
+        if temp_count[0]==2 and temp_count[1]==3:
+            return (row,np.where(mat[row,:]==0)[0][choice])
+    # For col
+    for col in range(len(mat)):
+        if np.array_equal(mat[:,col],skip_array) or np.array_equal(mat[:,col],skip_array[::-1]):
+            continue
+        temp_count = Counter(mat[:,col])
+        if temp_count[0]==2 and temp_count[1]==3:
+            return (np.where(mat[:,col]==0)[0][choice],col)
+    # For diagonal
+    temp_count = Counter(mat.diagonal())
+    if np.array_equal(mat.diagonal(),skip_array) or np.array_equal(mat.diagonal(),skip_array[::-1]):
+            pass
+    else:
+        if temp_count[0]==2 and temp_count[1]==3:
+            return (np.where(mat.diagonal()==0)[0][choice],np.where(mat.diagonal()==0)[0][choice])
+    # For off diagonal
+    temp_count = Counter(mat[::-1].diagonal())
+    if np.array_equal(mat[::-1].diagonal(),skip_array) or np.array_equal(mat[::-1].diagonal(),skip_array[::-1]):
+            pass
+    else:
+        if temp_count[0]==2 and temp_count[1]==3:
+            return (np.where(mat[::-1].diagonal()==0)[0][choice],len(mat)-1-np.where(mat[::-1].diagonal()==0)[0][choice])
+    return None
+
+
+
+# def _stop_three_connect(mat):
+#     """"
+#     find potential position to stop three opponent connected chess (开放版，只拦截01110)
+#     input:
+#         mat: 5*5 matrix
+#     output:
+#         tuple of the position to stop
+#     """
+#     choice = np.random.choice([0,4])
+#     check_arr = np.array([0,1,1,1,0])       # only cut 01110
+    
+#     # For row
+#     for row in range(len(mat)):
+#         if np.array_equal(mat[row,:],check_arr):
+#             return (row,choice)
+#     # For col
+#     for col in range(len(mat)):
+#         if np.array_equal(mat[:,col],check_arr):
+#             return (choice,col)
+#     # For diagonal
+#     if np.array_equal(mat.diagonal(),check_arr):
+#         return (choice,choice)
+#     # For off diagonal
+#     if np.array_equal(mat[::-1].diagonal(),check_arr):
+#         return (choice,len(mat)-1-choice)
+#     return None
+
+def find_cut_position(mat):
+    size = mat.shape[0]
+    for i in range(size-5+1):
+        for j in range(size-5+1):
+            pos_for_four = _stop_four_connect(mat[i:i+5,j:j+5])
+            pos_for_three = _stop_three_connect(mat[i:i+5,j:j+5])
+            if pos_for_four or pos_for_three:
+                if pos_for_four:
+                    print(f"cut for pos_for_four,{[(pos_for_four[0]+i),pos_for_four[1]+j]}")
+                    return ((pos_for_four[0]+i),pos_for_four[1]+j)
+                else:
+                    print(f"cut for pos_for_three,{[pos_for_three[0]+i,pos_for_three[1]+j]}")
+                    return ((pos_for_three[0]+i),pos_for_three[1]+j)

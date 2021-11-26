@@ -7,9 +7,10 @@ Created on Sat Nov 13 11:17:05 2021
 
 import pygame
 import numpy as np
-from Helpers import draw_board, render, check_for_done
+from Helpers import draw_board, render, check_for_done, find_cut_position
 from MCTS import GameState, MCTSNode, MCTS
-    
+import time
+
 def main():
     # for debuging the check_for_done by Chris and rollout
     global M
@@ -65,6 +66,12 @@ def update_by_pc(mat):
     output:
         2D matrix representing the updated state of the game.
     """
+    # Look for cutting position first, if cut_pos==None, continue with the MCTS
+    cut_pos = find_cut_position(-mat)
+    if cut_pos:
+        time.sleep(1)
+        mat[cut_pos]=1
+        return mat
     board_state = GameState(mat = mat)
     root = MCTSNode(state = board_state)
     mcts = MCTS(root)
