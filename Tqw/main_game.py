@@ -67,7 +67,7 @@ def update_by_pc(mat):
     output:
         2D matrix representing the updated state of the game.
     """
-    if np.all(mat != 0):
+    if np.all(mat == 0):
         mat[len(mat)//2, len(mat)//2] = 1
         return mat
     # Look for cutting position first, if cut_pos==None, continue with the MCTS
