@@ -49,10 +49,11 @@ def main():
                 # otherwise contibue
                 mat = -update_by_pc(-mat)
                 done, res = check_for_done(mat)
+                render(screen, mat)
                 if done:
                     print(res,'win !')
                     break
-                render(screen, mat)
+                
                     
     
     pygame.quit()
@@ -66,8 +67,13 @@ def update_by_pc(mat):
     output:
         2D matrix representing the updated state of the game.
     """
+    if np.all(mat != 0):
+        mat[len(mat)//2, len(mat)//2] = 1
+        return mat
     # Look for cutting position first, if cut_pos==None, continue with the MCTS
+    #s = time.time()
     cut_pos = find_cut_position(-mat)
+    #print(time.time()-s)
     if cut_pos:
         time.sleep(1)
         mat[cut_pos]=1
