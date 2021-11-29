@@ -33,7 +33,7 @@ class MCTSNode:
     def N(self):
         return self._sim_nums
     
-    def get_unvisited_pos(self):
+    def get_unvisited_pos(self,r_param):
         '''
         when unvisited pos is None,
         return the list of candidate moves
@@ -43,25 +43,27 @@ class MCTSNode:
             #print('generating candidate moves...')
             #print('cur board:',self.cur_state.board)
             #self._unvisited_pos = self.cur_state.candidate_moves()
-            self._unvisited_pos = self.cur_state.select_can_moves()
+            self._unvisited_pos = self.cur_state.select_can_moves(r_param=r_param)
         return self._unvisited_pos
     
     def is_terminal(self):
         #print(self.cur_state.is_gameover())
         return self.cur_state.is_gameover()
     
-    def is_fully_expanded(self):
+    def is_fully_expanded(self,r_param):
         '''
         check has the node fully expanded
         '''
-        return len(self.get_unvisited_pos()) == 0
+        return len(self.get_unvisited_pos(r_param=r_param)) == 0
     
-    def UCB_weight(self,c_param=2):
+    def UCB_weight(self,c_param):
         self._ucb = (self.Q() / self.N()) + c_param * np.sqrt((2 * np.log(self.parent.N()) / self.N()))
         return self._ucb
         
-    def select_best_child(self, c_param=1.4):
+    def select_best_child(self, c_param):
         ucb_lst = [node.UCB_weight(c_param) for node in self.children]
+        if len(ucb_lst)==0:
+            print(self.cur_state.board)
         #print('weights:',ucb_lst)
         #print(np.argmax(ucb_lst))
         #print([node.cur_state.cur_pos for node in self.children])
@@ -134,14 +136,14 @@ class GameState:
         can_pos = [(x, y) for (x, y) in list(zip(indices[0], indices[1]))]
         #random.shuffle(can_pos)
         return can_pos
-    def select_can_moves(self, num = 20):
-        
+    def select_can_moves(self,r_param,num = 20):
+        # r is a tuning parameter related to the range of positions to calculate weights,
         can_moves = self.candidate_moves()
         if len(can_moves)<=num:
             return can_moves
         scores = []
         for move in can_moves:
-            t, b, l, r = move[0]-2, move[0]+2, move[1]-2, move[1]+2
+            t, b, l, r = move[0]-r_param, move[0]+r_param, move[1]-r_param, move[1]+r_param
             if t < 0:
                 t = 0
             elif b > len(self.board)-1:
@@ -170,7 +172,7 @@ class GameState:
                 return 1
         
         
-            if (diag_sum_tl == -5) or (diag_sum_tl == -5):
+            if (diag_sum_tl == -5) or (diag_sum_tr == -5):
                 return -1
         
             # if not over - no result
@@ -284,31 +286,31 @@ class MCTS:
     def __init__(self, node):
         self.root = node
 
-    def select_move_by_mcts(self, search_limit_num=None,search_limit_time=None):
+    def select_move_by_mcts(self,r_param,c_param, search_limit_num=None,search_limit_time=None):
         iterations = 0
         if search_limit_num:
             for i in range(search_limit_num):
-                leaf = self.traverse()
+                leaf = self.traverse(r_param=r_param,c_param=c_param)
                 #print(leaf.cur_state.board)
-                self.simulation(leaf)
+                self.simulation(leaf,r_param=r_param)
                 #print('leaf visited:',leaf.N())
                 
         else:
             end_time = time.time() + search_limit_time
             while time.time() < end_time:
-                leaf = self.traverse()
-                self.simulation(leaf)
+                leaf = self.traverse(r_param=r_param,c_param=c_param)
+                self.simulation(leaf,r_param=r_param)
                 iterations+=1
-        if iterations != 0:
-            print(f"{iterations} iterations in {search_limit_time}s")
+        # if iterations != 0:
+            # print(f"{iterations} iterations in {search_limit_time}s")
 
         # to select best child go for exploitation only
-        return self.root.select_best_child(c_param=2.0)
-    def simulation(self, leaf):
-        winner = self.rollout(leaf)
+        return self.root.select_best_child(c_param=c_param)
+    def simulation(self, leaf,r_param):
+        winner = self.rollout(leaf,r_param=r_param)
         self.backpropagate(leaf,winner)
 
-    def traverse(self):
+    def traverse(self,r_param,c_param):
         '''
         Choose the best child in each layer
         until reach a non-fully-expanded node
@@ -316,21 +318,21 @@ class MCTS:
         tmp_node = self.root
         tmp_ls = []
         while not tmp_node.is_terminal():
-            if not tmp_node.is_fully_expanded():
+            if not tmp_node.is_fully_expanded(r_param=r_param):
                 #print('traverse pos:',tmp_node.cur_state.cur_pos)
-                return self.expand(tmp_node)
+                return self.expand(tmp_node,r_param=r_param)
             else:
                 #print('fully expanded')
-                tmp_node = tmp_node.select_best_child()
+                tmp_node = tmp_node.select_best_child(c_param=c_param)
                 #print('best child:',tmp_node.cur_state.cur_pos)
             tmp_ls.append(tmp_node.cur_state.cur_player)
         return tmp_node
-    def expand(self,node):
+    def expand(self,node,r_param):
         '''
         expand the non-fully-expanded node
         choose an unvisited position as a child node
         '''
-        pos = node.get_unvisited_pos().pop()
+        pos = node.get_unvisited_pos(r_param=r_param).pop()
         #print(self.get_unvisited_pos())
         next_state = node.cur_state.get_next_state(pos)
         child = MCTSNode(next_state,node)
@@ -345,10 +347,8 @@ class MCTS:
         '''
         return random.sample(can_pos,1)[0]
     
-    def rollout(self,node):
+    def rollout(self,node,r_param):
         '''
-        
-
         Return -1 1 or 0
         -------
         from the leaf node, start to rollout
@@ -359,7 +359,7 @@ class MCTS:
         while not tmp_state.is_gameover():
             #print(tmp_state.board)
             #can_pos = tmp_state.candidate_moves()
-            can_pos = tmp_state.select_can_moves()
+            can_pos = tmp_state.select_can_moves(r_param=r_param)
             #if len(tmp_state.cur_pos)!=2:
                 #print(tmp_state.cur_pos)
             pos = self.rollout_policy(can_pos)
@@ -513,7 +513,7 @@ def _five_mat_res_new(mat):
         return 1
 
 
-    if (diag_sum_tl == -5) or (diag_sum_tl == -5):
+    if (diag_sum_tl == -5) or (diag_sum_tr == -5):
         return -1
 
     # if not over - no result
@@ -523,115 +523,115 @@ def _five_mat_res_new(mat):
 # Check for done function written by Chris on Nov.11
 # Using the difference of last_mat and mat to find the last position, and determine only by the relative 
 #### This check_for_done is 4 times faster than the standard one ######################
-def check_for_done(mat):
-    global last_mat
-    try:
-        if len((np.where(abs(mat-last_mat)==1))[0])!=1:
-            last_mat = mat.copy()
-            #print(tt)                   # manually get into the exception clause
-        pos=[int(x) for x in np.where(abs(mat-last_mat)==1)]
-        last_mat = mat.copy()
-        row,col = pos[0],pos[1]         
-        player = mat[row,col]
-        top = 0 if row-4<0 else row-4               # define the upper bound, lower bound, left bound and right bound for the check condition
-        bottom = 7 if row+4>7 else row+4
-        left = 0 if col-4<0 else col-4
-        right = 7 if col+4>7 else col+4
-        ones5 = np.ones(5)
-        # print("into try")              # debug message to check if the mat is into try or exception
+# def check_for_done(mat):
+#     global last_mat
+#     try:
+#         if len((np.where(abs(mat-last_mat)==1))[0])!=1:
+#             last_mat = mat.copy()
+#             print(tt)                   # manually get into the exception clause
+#         pos=[int(x) for x in np.where(abs(mat-last_mat)==1)]
+#         last_mat = mat.copy()
+#         row,col = pos[0],pos[1]         
+#         player = mat[row,col]
+#         top = 0 if row-4<0 else row-4               # define the upper bound, lower bound, left bound and right bound for the check condition
+#         bottom = 7 if row+4>7 else row+4
+#         left = 0 if col-4<0 else col-4
+#         right = 7 if col+4>7 else col+4
+#         ones5 = np.ones(5)
+#         # print("into try")              # debug message to check if the mat is into try or exception
         
-        # Check if horizontal made 5 connects
-        temp_left = left
-        while temp_left+4<=right:
-            if np.matmul(mat[row,temp_left:temp_left+5],ones5) == 5*player:
-                return True,player
-            temp_left+=1
-        # print("position1")
-        # Check for the vertical
-        temp_top = top
-        while temp_top+4<=bottom:
-            if np.matmul(mat[temp_top:temp_top+5,col],ones5) == 5*player:
-                return True,player
-            temp_top+=1
-        # print("position2")
-        # # Check for the diagonal
-        temp_col = col-5
-        temp_row = row-5
-        while temp_col<=7 and temp_row<=7:
-            if temp_col<0 or temp_row<0:
-                pass
-            else:
-                if(np.sum(mat[temp_row:temp_row+5,temp_col:temp_col+5].diagonal())==5*player):
-                    return True,player
-            temp_col+=1
-            temp_row+=1
-        # print("position3")
-        # Check for the off-diagonal
-        temp_col = col
-        temp_row = row
-        while temp_col<=7 and temp_row<=7:
-            if(np.sum(np.fliplr(mat[temp_row:temp_row+5,temp_col-4:temp_col+1]).diagonal())==5*player):
-                return True,player
-            temp_col+=1
-            temp_row-=1
-        if np.sum(mat==0)==0:
-            return True,0
-        else:
-            return False,0
+#         # Check if horizontal made 5 connects
+#         temp_left = left
+#         while temp_left+4<=right:
+#             if np.matmul(mat[row,temp_left:temp_left+5],ones5) == 5*player:
+#                 return True,player
+#             temp_left+=1
+#         # print("position1")
+#         # Check for the vertical
+#         temp_top = top
+#         while temp_top+4<=bottom:
+#             if np.matmul(mat[temp_top:temp_top+5,col],ones5) == 5*player:
+#                 return True,player
+#             temp_top+=1
+#         # print("position2")
+#         # # Check for the diagonal
+#         temp_col = col-5
+#         temp_row = row-5
+#         while temp_col<=7 and temp_row<=7:
+#             if temp_col<0 or temp_row<0:
+#                 pass
+#             else:
+#                 if(np.sum(mat[temp_row:temp_row+5,temp_col:temp_col+5].diagonal())==5*player):
+#                     return True,player
+#             temp_col+=1
+#             temp_row+=1
+#         # print("position3")
+#         # Check for the off-diagonal
+#         temp_col = col
+#         temp_row = row
+#         while temp_col<=7 and temp_row<=7:
+#             if(np.sum(np.fliplr(mat[temp_row:temp_row+5,temp_col-4:temp_col+1]).diagonal())==5*player):
+#                 return True,player
+#             temp_col+=1
+#             temp_row-=1
+#         if np.sum(mat==0)==0:
+#             return True,0
+#         else:
+#             return False,0
 
-    except:                             # if last_map not even exist, this is the first step
+#     except:                             # if last_map not even exist, this is the first step
     
-        # print("get into the exception")              # debug message
-        # if last_mat does not exist or does not match condition, we perpare this mat to be last_mat as we call next time
-        last_mat = mat.copy()           
-        size = mat.shape[0]
-        if np.sum([mat==0]) > (size*size-9):     # if less than 9 moves, no winner
-            return False,0
-        ones8 = np.ones(8)
-        mat1 = mat.copy()
-        mat1[mat1==-1] = 0                 # mat1 only keeps 1 in the mat
-        mat2 = mat.copy()
-        mat2[mat1==1] = 0
-        mat2 = mat2*(-1)                   # mat2 only keeps -1 in the mat, but convert all -1 to 1 for future calculation
+#         # print("get into the exception")              # debug message
+#         # if last_mat does not exist or does not match condition, we perpare this mat to be last_mat as we call next time
+#         last_mat = mat.copy()           
+#         size = mat.shape[0]
+#         if np.sum([mat==0]) > (size*size-9):     # if less than 9 moves, no winner
+#             return False,0
+#         ones8 = np.ones(8)
+#         mat1 = mat.copy()
+#         mat1[mat1==-1] = 0                 # mat1 only keeps 1 in the mat
+#         mat2 = mat.copy()
+#         mat2[mat1==1] = 0
+#         mat2 = mat2*(-1)                   # mat2 only keeps -1 in the mat, but convert all -1 to 1 for future calculation
         
-        rowsum = np.matmul(mat1,ones8)
-        colsum = np.matmul(ones8, mat1)
-        row_to_check=[index for index,value in enumerate(rowsum) if value>4]
-        col_to_check=[index for index,value in enumerate(colsum) if value>4]
+#         rowsum = np.matmul(mat1,ones8)
+#         colsum = np.matmul(ones8, mat1)
+#         row_to_check=[index for index,value in enumerate(rowsum) if value>4]
+#         col_to_check=[index for index,value in enumerate(colsum) if value>4]
 
-        rowsum2 = np.matmul(mat2,ones8)
-        colsum2 = np.matmul(ones8, mat2)
-        row_to_check2 = [index for index,value in enumerate(rowsum2) if value>4]
-        col_to_check2 = [index for index,value in enumerate(colsum2) if value>4]
+#         rowsum2 = np.matmul(mat2,ones8)
+#         colsum2 = np.matmul(ones8, mat2)
+#         row_to_check2 = [index for index,value in enumerate(rowsum2) if value>4]
+#         col_to_check2 = [index for index,value in enumerate(colsum2) if value>4]
 
-        for row in row_to_check:
-            for col_index in range(0,size-4):
-                if np.matmul(mat1[row,col_index:col_index+5],ones8[:5]) == 5:
-                    return True,1
-        for col in col_to_check:
-            for row_index in range(0,size-4):
-                if np.matmul(mat1[row_index:row_index+5,col],ones8[:5]) == 5:
-                    return True,1 
+#         for row in row_to_check:
+#             for col_index in range(0,size-4):
+#                 if np.matmul(mat1[row,col_index:col_index+5],ones8[:5]) == 5:
+#                     return True,1
+#         for col in col_to_check:
+#             for row_index in range(0,size-4):
+#                 if np.matmul(mat1[row_index:row_index+5,col],ones8[:5]) == 5:
+#                     return True,1 
         
-        for row in row_to_check2:
-            for col_index in range(0,size-4):
-                if np.matmul(mat2[row,col_index:col_index+5],ones8[:5]) == 5:
-                    return True,-1
-        for col in col_to_check2:
-            for row_index in range(0,size-4):
-                if np.matmul(mat2[row_index:row_index+5,col],ones8[:5]) == 5:
-                    return True,-1 
+#         for row in row_to_check2:
+#             for col_index in range(0,size-4):
+#                 if np.matmul(mat2[row,col_index:col_index+5],ones8[:5]) == 5:
+#                     return True,-1
+#         for col in col_to_check2:
+#             for row_index in range(0,size-4):
+#                 if np.matmul(mat2[row_index:row_index+5,col],ones8[:5]) == 5:
+#                     return True,-1 
 
-        for i in range(size-5+1):
-            for j in range(size-5+1):
-                res = _five_mat_res_new(mat[i:i+5,j:j+5])
-                if res == None:
-                    continue
-                else:
-                    return True, res
-        if np.all(mat != 0):
-            return True, 0
-        return False,0
+#         for i in range(size-5+1):
+#             for j in range(size-5+1):
+#                 res = _five_mat_res_new(mat[i:i+5,j:j+5])
+#                 if res == None:
+#                     continue
+#                 else:
+#                     return True, res
+#         if np.all(mat != 0):
+#             return True, 0
+#         return False,0
 
 import numpy as np
 from collections import Counter
@@ -657,12 +657,12 @@ def _stop_four_connect(mat):
     # For diagonal
     temp_count = Counter(mat.diagonal())
     if temp_count[0]==1 and temp_count[1]==4:
-        print(np.where(mat.diagonal()==0))
+        # print(np.where(mat.diagonal()==0))
         return (np.where(mat.diagonal()==0)[0][0],np.where(mat.diagonal()==0)[0][0])
     # For off diagonal
     temp_count = Counter(mat[::-1].diagonal())
     if temp_count[0]==1 and temp_count[1]==4:
-        print(mat[::-1].diagonal())
+        # print(mat[::-1].diagonal())
         return (np.where(mat[::-1].diagonal()[::-1]==0)[0][0],len(mat)-1-np.where(mat[::-1].diagonal()[::-1]==0)[0][0])
 
 def _stop_three_connect(mat):
@@ -741,28 +741,28 @@ def find_cut_position(mat):
         for j in range(size-5+1):
             pos_for_four_self = _stop_four_connect(-mat[i:i+5,j:j+5])
             if pos_for_four_self:
-                print(f"pos_for_four_self,{[(pos_for_four_self[0]+i),pos_for_four_self[1]+j]}")
+                # print(f"pos_for_four_self,{[(pos_for_four_self[0]+i),pos_for_four_self[1]+j]}")
                 return ((pos_for_four_self[0]+i),pos_for_four_self[1]+j)
     for i in range(size-5+1):
         for j in range(size-5+1):
             pos_for_four_oppo = _stop_four_connect(mat[i:i+5,j:j+5])
             if pos_for_four_oppo:
-                print(f"pos_for_four_oppo,{[(pos_for_four_oppo[0]+i),pos_for_four_oppo[1]+j]}")
+                # print(f"pos_for_four_oppo,{[(pos_for_four_oppo[0]+i),pos_for_four_oppo[1]+j]}")
                 return ((pos_for_four_oppo[0]+i),pos_for_four_oppo[1]+j)
     for i in range(size-5+1):
         for j in range(size-5+1):
             pos_for_three_self = _stop_three_connect(-mat[i:i+5,j:j+5])
             if pos_for_three_self:
-                print(f"pos_for_three_self,{[(pos_for_three_self[0]+i),pos_for_three_self[1]+j]}")
+                # print(f"pos_for_three_self,{[(pos_for_three_self[0]+i),pos_for_three_self[1]+j]}")
                 return ((pos_for_three_self[0]+i),pos_for_three_self[1]+j)
             
     for i in range(size-5+1):
         for j in range(size-5+1):
             pos_for_three_oppo = _stop_three_connect(mat[i:i+5,j:j+5])
             if pos_for_three_oppo:
-                print(f"cut for pos_for_three_oppo,{[pos_for_three_oppo[0]+i,pos_for_three_oppo[1]+j]}")
+                # print(f"cut for pos_for_three_oppo,{[pos_for_three_oppo[0]+i,pos_for_three_oppo[1]+j]}")
                 return ((pos_for_three_oppo[0]+i),pos_for_three_oppo[1]+j)
-def update_by_pc(mat):
+def update_by_pc(mat,c_param,r_param):
     """
     This is the core of the game. Write your code to give the computer the intelligence to play a Five-in-a-Row game 
     with a human
@@ -786,5 +786,5 @@ def update_by_pc(mat):
     root = MCTSNode(state = board_state)
     mcts = MCTS(root)
     # best_node = mcts.select_move_by_mcts(search_limit_num=2000)                    # Specify number of iterations in one move
-    best_node = mcts.select_move_by_mcts(search_limit_time=5)                       # Specify iterations time in one move
+    best_node = mcts.select_move_by_mcts(search_limit_time=5,r_param=2,c_param=2)                       # Specify iterations time in one move
     return best_node.cur_state.board
