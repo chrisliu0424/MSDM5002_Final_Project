@@ -143,7 +143,7 @@ def _five_mat_res_new(mat):
         return 1
 
 
-    if (diag_sum_tl == -5) or (diag_sum_tl == -5):
+    if (diag_sum_tl == -5) or (diag_sum_tr == -5):
         return -1
 
     # if not over - no result

@@ -81,7 +81,7 @@ def _five_mat_res_new(mat):
         return 1
 
 
-    if (diag_sum_tl == -5) or (diag_sum_tl == -5):
+    if (diag_sum_tl == -5) or (diag_sum_tr == -5):
         return -1
 
     # if not over - no result
@@ -92,115 +92,55 @@ def _five_mat_res_new(mat):
 # Using the difference of last_mat and mat to find the last position, and determine only by the relative 
 #### This check_for_done is 4 times faster than the standard one ######################
 def check_for_done(mat):
-    global last_mat
-    try:
-        if len((np.where(abs(mat-last_mat)==1))[0])!=1:
-            last_mat = mat.copy()
-            #print(tt)                   # manually get into the exception clause
-        pos=[int(x) for x in np.where(abs(mat-last_mat)==1)]
-        last_mat = mat.copy()
-        row,col = pos[0],pos[1]         
-        player = mat[row,col]
-        top = 0 if row-4<0 else row-4               # define the upper bound, lower bound, left bound and right bound for the check condition
-        bottom = 7 if row+4>7 else row+4
-        left = 0 if col-4<0 else col-4
-        right = 7 if col+4>7 else col+4
-        ones5 = np.ones(5)
-        # print("into try")              # debug message to check if the mat is into try or exception
-        
-        # Check if horizontal made 5 connects
-        temp_left = left
-        while temp_left+4<=right:
-            if np.matmul(mat[row,temp_left:temp_left+5],ones5) == 5*player:
-                return True,player
-            temp_left+=1
-        # print("position1")
-        # Check for the vertical
-        temp_top = top
-        while temp_top+4<=bottom:
-            if np.matmul(mat[temp_top:temp_top+5,col],ones5) == 5*player:
-                return True,player
-            temp_top+=1
-        # print("position2")
-        # # Check for the diagonal
-        temp_col = col-5
-        temp_row = row-5
-        while temp_col<=7 and temp_row<=7:
-            if temp_col<0 or temp_row<0:
-                pass
-            else:
-                if(np.sum(mat[temp_row:temp_row+5,temp_col:temp_col+5].diagonal())==5*player):
-                    return True,player
-            temp_col+=1
-            temp_row+=1
-        # print("position3")
-        # Check for the off-diagonal
-        temp_col = col
-        temp_row = row
-        while temp_col<=7 and temp_row<=7:
-            if(np.sum(np.fliplr(mat[temp_row:temp_row+5,temp_col-4:temp_col+1]).diagonal())==5*player):
-                return True,player
-            temp_col+=1
-            temp_row-=1
-        if np.sum(mat==0)==0:
-            return True,0
-        else:
-            return False,0
-
-    except:                             # if last_map not even exist, this is the first step
-    
-        # print("get into the exception")              # debug message
-        # if last_mat does not exist or does not match condition, we perpare this mat to be last_mat as we call next time
-        last_mat = mat.copy()           
-        size = mat.shape[0]
-        if np.sum([mat==0]) > (size*size-9):     # if less than 9 moves, no winner
-            return False,0
-        ones8 = np.ones(8)
-        mat1 = mat.copy()
-        mat1[mat1==-1] = 0                 # mat1 only keeps 1 in the mat
-        mat2 = mat.copy()
-        mat2[mat1==1] = 0
-        mat2 = mat2*(-1)                   # mat2 only keeps -1 in the mat, but convert all -1 to 1 for future calculation
-        
-        rowsum = np.matmul(mat1,ones8)
-        colsum = np.matmul(ones8, mat1)
-        row_to_check=[index for index,value in enumerate(rowsum) if value>4]
-        col_to_check=[index for index,value in enumerate(colsum) if value>4]
-
-        rowsum2 = np.matmul(mat2,ones8)
-        colsum2 = np.matmul(ones8, mat2)
-        row_to_check2 = [index for index,value in enumerate(rowsum2) if value>4]
-        col_to_check2 = [index for index,value in enumerate(colsum2) if value>4]
-
-        for row in row_to_check:
-            for col_index in range(0,size-4):
-                if np.matmul(mat1[row,col_index:col_index+5],ones8[:5]) == 5:
-                    return True,1
-        for col in col_to_check:
-            for row_index in range(0,size-4):
-                if np.matmul(mat1[row_index:row_index+5,col],ones8[:5]) == 5:
-                    return True,1 
-        
-        for row in row_to_check2:
-            for col_index in range(0,size-4):
-                if np.matmul(mat2[row,col_index:col_index+5],ones8[:5]) == 5:
-                    return True,-1
-        for col in col_to_check2:
-            for row_index in range(0,size-4):
-                if np.matmul(mat2[row_index:row_index+5,col],ones8[:5]) == 5:
-                    return True,-1 
-
-        for i in range(size-5+1):
-            for j in range(size-5+1):
-                res = _five_mat_res_new(mat[i:i+5,j:j+5])
-                if res == None:
-                    continue
-                else:
-                    return True, res
-        if np.all(mat != 0):
-            return True, 0
+    # print("get into the exception")              # debug message
+    # if last_mat does not exist or does not match condition, we perpare this mat to be last_mat as we call next time           
+    size = mat.shape[0]
+    if np.sum([mat==0]) > (size*size-9):     # if less than 9 moves, no winner
         return False,0
-    #return done,result
+    ones8 = np.ones(8)
+    mat1 = mat.copy()
+    mat1[mat1==-1] = 0                 # mat1 only keeps 1 in the mat
+    mat2 = mat.copy()
+    mat2[mat1==1] = 0
+    mat2 = mat2*(-1)                   # mat2 only keeps -1 in the mat, but convert all -1 to 1 for future calculation
+    
+    rowsum = np.matmul(mat1,ones8)
+    colsum = np.matmul(ones8, mat1)
+    row_to_check=[index for index,value in enumerate(rowsum) if value>4]
+    col_to_check=[index for index,value in enumerate(colsum) if value>4]
+
+    rowsum2 = np.matmul(mat2,ones8)
+    colsum2 = np.matmul(ones8, mat2)
+    row_to_check2 = [index for index,value in enumerate(rowsum2) if value>4]
+    col_to_check2 = [index for index,value in enumerate(colsum2) if value>4]
+
+    for row in row_to_check:
+        for col_index in range(0,size-4):
+            if np.matmul(mat1[row,col_index:col_index+5],ones8[:5]) == 5:
+                return True,1
+    for col in col_to_check:
+        for row_index in range(0,size-4):
+            if np.matmul(mat1[row_index:row_index+5,col],ones8[:5]) == 5:
+                return True,1 
+    
+    for row in row_to_check2:
+        for col_index in range(0,size-4):
+            if np.matmul(mat2[row,col_index:col_index+5],ones8[:5]) == 5:
+                return True,-1
+    for col in col_to_check2:
+        for row_index in range(0,size-4):
+            if np.matmul(mat2[row_index:row_index+5,col],ones8[:5]) == 5:
+                return True,-1 
+    for i in range(size-5+1):
+        for j in range(size-5+1):
+            res = _five_mat_res_new(mat[i:i+5,j:j+5])
+            if res == None:
+                continue
+            else:
+                return True, res
+    if np.all(mat != 0):
+        return True, 0
+    return False,0
 
 def update_by_pc(mat):
     """
@@ -217,6 +157,7 @@ def update_by_pc(mat):
 
 import pygame
 import numpy as np
+from collections import Counter
 def main():
     global M
     M = 8
@@ -238,7 +179,7 @@ def main():
             if event.type!=pygame.QUIT:
                 
                 ###it is g12 turn
-                mat=g12.update_by_pc(mat)
+                mat=g12.update_by_pc(mat,c_param=2,r_param=2)
                 ###
                 
                 
@@ -265,7 +206,74 @@ def main():
                     print('winer is:',_)
                     break
 
+def main_noGUI_Ntimes(N=1000):
+    global M
+    winner_list1 = []
+    g12r,g12c = 2,2
+    g3r,g3c = 2,5
+    for i in range(N):
+        print(f"Starting iteration {i+1} of First {N}")
+        M = 8
+        done = False  
+        mat=np.zeros((M,M),int)
+        while not done:
+            # g12 go first and then g3
+            # print("After g3 update,mat is")
+            # print(mat)
+            mat=g12.update_by_pc(mat,r_param=g12r,c_param=g12c)
+            done, winner = check_for_done(mat)
+            if done==True:
+                print('winer is:',winner)
+                winner_list1.append(winner)
+                break
+            
+            # print("After g12 update,mat is")
+            # print(mat)
+            # print()
+            ### it is g3 turn
+            mat = g3.update_by_pc(-1*mat,r_param=g3r,c_param=g3c) # transform to the result for g3 to put white stone
+            mat=mat*(-1)
+            # check for win or tie
+            done, winner = check_for_done(mat)
+            if done==True:
+                print('winer is:',winner)
+                winner_list1.append(winner)
+                break
+
+    winner_list2 = []
+    for i in range(N):
+        print(f"Starting iteration {i+1} of Second {N}")
+        done = False 
+        mat=np.zeros((M,M),int)
+        while not done:
+            # g3 go first and then g12
+            # print("position 1")
+            # print(mat)
+            mat=g3.update_by_pc(mat,r_param=g3r,c_param=g3c)
+            done, winner = check_for_done(mat)
+            if done==True:
+                print('winer is:',winner)
+                winner_list2.append(winner)
+                break
+            
+            # print("position 2")
+            # print(mat)
+            # print()
+            mat = g12.update_by_pc(-1*mat,r_param=g12r,c_param=g12c) # transform to the result for g12 to put white stone
+            mat=mat*(-1)
+            # check for win or tie
+            done, winner = check_for_done(mat)
+            if done==True:
+                print('winer is:',winner)
+                winner_list2.append(winner)
+                break
+    print()
+    print(f"g12 has parameter: r = {g12r},c = {g12c}")
+    print(f"g3 has parameter: r = {g3r},c = {g3c}")
+    print(f"winner_list1 is :{Counter(winner_list1)}(g12->g3)")
+    print(f"winner_list2 is :{Counter(winner_list2)}(g3->g12)")
 
 if __name__ == '__main__':
-    main()
+    # main()
+    main_noGUI_Ntimes(N=100)
     
